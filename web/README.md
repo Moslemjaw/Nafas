@@ -13,6 +13,27 @@ A React + Vite + TypeScript PWA with two tabs:
   and right sound different.
 
 Both models run **in the browser** (onnxruntime-web), so audio never leaves the phone.
+
+## Show it on a computer screen
+
+Open the app on a computer with **`#display`** at the end of the URL
+(https://moslemjaw.github.io/Nafas/#display). It shows a QR code. Scan it with the phone:
+the app opens on the phone already paired, and the computer shows, live, a big cough
+counter, the cough probability, coughs per minute, and the lung check (the breathing
+circle mirrored in step with the phone, chest diagrams and results).
+
+- **How:** the phone publishes its state over **MQTT**, the same protocol as the Pi's
+  Mosquitto broker in the full system. Today it uses a public broker
+  (`broker.hivemq.com`); add `?broker=wss://...` to the URL on both devices to use
+  another one, such as the Pi.
+- **Privacy:** only numbers and labels are sent, never audio. They are **end-to-end
+  encrypted** (AES-GCM) with a key that exists only in the QR code. The key sits in the
+  URL `#fragment`, which browsers never send to a server, so the broker sees only
+  ciphertext.
+- **Delay:** through the public broker, updates take a few seconds to arrive. The
+  screen undoes the delay for the breathing circle using the phone's timestamps, so
+  once it starts it stays in step with the phone. On a local broker (the Pi), the
+  delay would be a few milliseconds.
 In the full Nafas design the model runs on the Raspberry Pi; this is the prototype step.
 
 **Live:** https://moslemjaw.github.io/Nafas/
@@ -43,6 +64,9 @@ load it works offline.
 | `src/lung.ts` | Lung analysis, done the way the model was trained: peak-normalize the recording, one 4 s window per breath, log-mel, subtract each band's mean over the recording, then the model |
 | `src/LungView.tsx` | Lung tab: choose 4 or 2 spots, one step per spot with a breathing pacer (2 s in, 2 s out, so each 4 s window is one breath), per-spot results, summary, file test |
 | `src/ChestDiagram.tsx`, `src/spots.ts` | Front/back torso drawings with the lungs, and the spot positions and placement tips |
+| `src/link.ts` | Phone ↔ screen pairing and the encrypted MQTT link |
+| `src/feed.ts` | The phone's state as mirrored to the screen (sent at most twice a second, plus a 5 s heartbeat) |
+| `src/DisplayView.tsx` | The computer screen (`#display`): QR pairing, cough panel, lung panel with the mirrored pacer |
 | `src/features.ts` | Shared log-mel code: a DFT for the cough model's 400-point window, and an FFT for the lung model's 1024-point window |
 | `public/model/` | `cough.*` from `python train.py web`, and `lung.*` from `python train_lung.py web` |
 

@@ -3,6 +3,7 @@ import { decodeFile, SR, startMic, type Mic } from './audio'
 import { ChestDiagram } from './ChestDiagram'
 import { SPOTS, type Side, type Spot, type SpotState } from './spots'
 import { STOP_COUGH } from './events'
+import { feed, type LungPhase } from './feed'
 import { LungModel, type LungResult } from './lung'
 
 const BASE = import.meta.env.BASE_URL
@@ -108,6 +109,47 @@ export default function LungView() {
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }, [plan, step, done, spotResult])
 
+  // mirror everything to a paired computer screen (no audio, just state).
+  // The screen moves the breathing circle on by itself, so while it runs only
+  // send when the countdown second or the breath number changes.
+  const lastMirrored = useRef('')
+  useEffect(() => {
+    const tickKey =
+      phase.kind === 'countdown'
+        ? `c${Math.ceil(phase.left)}`
+        : phase.kind === 'recording'
+          ? `r${Math.floor(phase.elapsed / BREATH_SECONDS)}`
+          : phase.kind
+    const key = `${plan?.length}|${step}|${done}|${Object.keys(results).join()}|${tickKey}`
+    if (key === lastMirrored.current) return
+    lastMirrored.current = key
+    const now = Date.now()
+    const p: LungPhase =
+      phase.kind === 'countdown'
+        ? { kind: 'countdown', left: phase.left, at: now }
+        : phase.kind === 'recording'
+          ? { kind: 'recording', elapsed: phase.elapsed, at: now }
+          : { kind: phase.kind }
+    feed.update({
+      lung: {
+        plan: plan ? plan.map((s) => s.id) : null,
+        step,
+        phase: p,
+        done,
+        results: Object.fromEntries(
+          Object.entries(results).map(([id, r]) => [
+            id,
+            {
+              labels: r.breaths.map((b) => b.label),
+              probs: r.breaths.map((b) => Math.max(...b.probs)),
+              flagged: spotState(r) === 'abnormal',
+            },
+          ]),
+        ),
+      },
+    })
+  }, [plan, step, phase, results, done])
+
   // the recording view covers the screen; keep the page behind it from scrolling
   useEffect(() => {
     document.body.style.overflow = active ? 'hidden' : ''
@@ -168,7 +210,7 @@ export default function LungView() {
     const tick = () => {
       const sec = (performance.now() - t0) / 1000
       if (sec < countdown) {
-        setPhase({ kind: 'countdown', left: Math.ceil(countdown - sec) })
+        setPhase({ kind: 'countdown', left: countdown - sec })
       } else if (got < need) {
         recording = true
         setPhase({ kind: 'recording', elapsed: sec - countdown })
@@ -378,7 +420,7 @@ function Session({
   let breath = 0 // breaths finished
   let inBreath = 0
   if (phase.kind === 'countdown') {
-    label = String(phase.left)
+    label = String(Math.ceil(phase.left))
     sub = spot.side === 'back' ? 'Helper: place the phone on the back' : 'Place the phone on your chest'
   } else if (phase.kind === 'recording') {
     breath = Math.min(BREATHS, Math.floor(phase.elapsed / BREATH_SECONDS))

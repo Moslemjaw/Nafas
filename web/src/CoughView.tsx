@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { decodeFile, startMic, type Mic } from './audio'
 import { Detector, HOP, MIC_WARMUP, Model, type CoughEvent, type Score } from './detector'
 import { STOP_COUGH } from './events'
+import { feed } from './feed'
 
 const BASE = import.meta.env.BASE_URL
 const HISTORY = Math.round(30 / (HOP / 16000)) // 30 s of scores
@@ -50,16 +51,19 @@ export default function CoughView() {
     det.onScore = (s) => {
       setScore(s)
       setHistory((h) => [...h.slice(-(HISTORY - 1)), s.p])
+      feed.update({ cough: { p: s.p, level: s.level } })
     }
     det.onCough = (e) => {
       setCoughs((c) => [{ at: new Date(), p: e.p }, ...c])
       setFlash(true)
       setTimeout(() => setFlash(false), 600)
       navigator.vibrate?.(120)
+      feed.cough(e.p)
     }
     try {
       mic.current = await startMic(BASE, (x) => det.push(x))
       setListening(true)
+      feed.update({ tab: 'cough', cough: { listening: true } })
       wakeLock.current = (await navigator.wakeLock?.request('screen').catch(() => null)) ?? null
     } catch (e) {
       setError(
@@ -77,6 +81,7 @@ export default function CoughView() {
     wakeLock.current = null
     setListening(false)
     setScore(null)
+    feed.update({ cough: { listening: false, p: 0, level: 0 } })
   }
 
   async function testFile(file: File) {
@@ -144,7 +149,13 @@ export default function CoughView() {
           </ul>
         )}
         {coughs.length > 0 && (
-          <button className="link" onClick={() => setCoughs([])}>
+          <button
+            className="link"
+            onClick={() => {
+              setCoughs([])
+              feed.update({ cough: { count: 0, times: [], probs: [] } })
+            }}
+          >
             Clear
           </button>
         )}
