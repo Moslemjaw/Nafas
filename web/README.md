@@ -13,11 +13,14 @@ A React + Vite + TypeScript PWA with two tabs:
   and right sound different.
 
 Both models run **in the browser** (onnxruntime-web), so audio never leaves the phone.
+In the full Nafas design the models run on the Raspberry Pi; this is the prototype step.
+
+**Live:** https://nafas-lemon.vercel.app (backup: https://moslemjaw.github.io/Nafas/)
 
 ## Show it on a computer screen
 
 Open the app on a computer with **`#display`** at the end of the URL
-(https://moslemjaw.github.io/Nafas/#display). It shows a QR code. Scan it with the phone:
+(https://nafas-lemon.vercel.app/#display). It shows a QR code. Scan it with the phone:
 the app opens on the phone already paired, and the computer shows, live, a big cough
 counter, the cough probability, coughs per minute, and the lung check (the breathing
 circle mirrored in step with the phone, chest diagrams and results).
@@ -34,9 +37,8 @@ circle mirrored in step with the phone, chest diagrams and results).
   screen undoes the delay for the breathing circle using the phone's timestamps, so
   once it starts it stays in step with the phone. On a local broker (the Pi), the
   delay would be a few milliseconds.
-In the full Nafas design the model runs on the Raspberry Pi; this is the prototype step.
-
-**Live:** https://moslemjaw.github.io/Nafas/
+- **Same host on both devices:** the QR code links to the host the screen is on, so a
+  screen opened on Vercel pairs with the Vercel app on the phone.
 
 ## Run
 
@@ -47,11 +49,17 @@ npm run build      # production build in dist/
 npm run preview    # serve dist/ on http://localhost:4173
 ```
 
-A phone needs **HTTPS** to use the mic, which GitHub Pages provides. On every push to
-`main` that changes `web/`, the `.github/workflows/pages.yml` workflow builds this
-folder and publishes it to the `gh-pages` branch, and Pages serves that branch. Open
-the page on the phone, then use **Add to Home Screen** to install it. After the first
-load it works offline.
+A phone needs **HTTPS** to use the mic. Both hosts provide it and update on every push
+to `main`:
+
+- **Vercel (main):** the project builds this folder (Root Directory `web`) and serves
+  it at https://nafas-lemon.vercel.app.
+- **GitHub Pages (backup):** `.github/workflows/pages.yml` builds this folder and
+  publishes it to the `gh-pages` branch, served at https://moslemjaw.github.io/Nafas/.
+  The branch also carries a `web/vercel.json` that tells Vercel not to deploy it.
+
+Open the page on the phone, then use **Add to Home Screen** to install it. After the
+first load it works offline.
 
 ## How it works
 

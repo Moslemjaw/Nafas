@@ -189,8 +189,14 @@ For a continuous stream, slide the 1 s window with a 0.5 s hop.
 
 A React + Vite + TypeScript PWA runs both models in the phone's browser, with nothing
 sent off the device: live cough counting, and a guided **Lung check** that classifies
-6 paced breaths recorded with the phone pressed on the chest. Live at
-https://moslemjaw.github.io/Nafas/ — see [web/README.md](web/README.md).
+6 paced breaths recorded with the phone pressed on the chest. A computer can show the
+results live: open it with `#display` and scan the QR code with the phone.
+
+- **Live:** https://nafas-lemon.vercel.app
+- **Computer screen:** https://nafas-lemon.vercel.app/#display
+- **Backup:** https://moslemjaw.github.io/Nafas/
+
+See [web/README.md](web/README.md).
 
 - `python train.py web` copies `model.onnx` and the mel filterbank / normalization into `web/public/model/`.
 - The TypeScript log-mel matches `train.py` (max difference 0.004, probabilities within 0.001).
