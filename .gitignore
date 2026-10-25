@@ -1,0 +1,7 @@
+# Datasets and generated clips (multi-GB, too big for GitHub)
+_downloads/
+ESC-50/
+coughvid/
+Coswara-Data/
+cough_dataset/
+__pycache__/
