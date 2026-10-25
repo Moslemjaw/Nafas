@@ -204,10 +204,79 @@ mic, with nothing sent off the device. See [web/README.md](web/README.md).
 - `.github/workflows/pages.yml` deploys it to GitHub Pages, which provides the HTTPS a
   phone needs for mic access.
 
+## Lung sound model (`lung_prep.py`, `train_lung.py`)
+
+The second module classifies each breathing cycle heard by a chest mic as **normal,
+crackle, wheeze or both**. It's trained on [ICBHI 2017](https://bhichallenge.med.auth.gr/):
+920 stethoscope recordings from 126 patients, with every cycle labeled by doctors.
+
+```bash
+python lung_prep.py --icbhi ICBHI_final_database --split ICBHI_challenge_train_test.txt --out lung_dataset
+python train_lung.py features --data lung_dataset
+python train_lung.py train --data lung_dataset --recnorm --mixup 0.4 --epochs 40
+```
+
+- **Cycles:** 6,781 cycles cut from the recordings at 16 kHz. Each is repeat-padded or
+  center-cropped to 4 s (90% of cycles are shorter than 4.1 s). The chest position
+  (trachea, anterior, posterior or lateral; left or right) is kept for "which lung" later.
+- **Split:** the **official ICBHI patient-wise split**, so the test set (2,756 cycles,
+  49 patients) is the one papers report on. The official split puts 2 patients
+  (156, 218) on both sides, so their *train* cycles are dropped and the test set stays
+  unchanged. Val is 16 of the train patients.
+- **Features:** log-mel spectrogram, 64 bands from 50 Hz to 2 kHz (where lung sounds
+  are), 64 ms window (fine frequency detail for tonal wheezes), 10 ms hop → 64 × 401.
+- **Model:** the same CNN as the cough model, with 4 outputs and square-root class weights.
+- **Score (the ICBHI metric):** Sp = normal cycles called normal; Se = abnormal cycles
+  called the exact right class; Score = (Se + Sp) / 2.
+
+### Results (official test set)
+
+| | Round 1 | **Round 2 (final)** |
+|---|---|---|
+| Training | 60 epochs | 40 epochs, per-recording normalization, mixup 0.4 |
+| Se | 0.373 | **0.412** |
+| Sp | 0.508 | **0.636** |
+| **ICBHI score** | 0.440 | **0.524** |
+| Normal vs abnormal score | 0.543 | **0.598** |
+
+Per-class recall (round 2): normal 0.64, crackle 0.46, wheeze 0.48, both 0.04.
+
+For comparison, published results on this split are roughly 0.50–0.55 for small CNNs
+trained from scratch and 0.60–0.65 for the best (mostly pretrained) models.
+
+**Per-recording normalization** subtracts each recording's average spectrum, which
+removes most of the stethoscope's frequency "coloring" but keeps the crackles and
+wheezes. On the vest this becomes a running average per mic.
+
+### Why the stethoscope matters
+
+In ICBHI the stethoscope type is tangled up with the labels:
+
+| Stethoscope | Train cycles | Test cycles | Test score (round 2) |
+|---|---|---|---|
+| AKG C417L | 2,109 | 1,836 | 0.578 |
+| Meditron | 783 (73% normal) | 459 | 0.527 |
+| Littmann 3200 | **28** (mostly wheeze) | 461 (mostly normal) | **0.374** |
+
+The model barely saw a Littmann 3200 in training, and what it saw was mostly wheezes,
+so it calls most Littmann 3200 test cycles abnormal. The Nafas vest uses one mic type
+of its own, so this mix of devices won't exist there. But it does mean the model must be
+fine-tuned on vest recordings before its output means anything.
+
+### Limitations
+
+- **"Both" (crackle + wheeze together) is almost never detected** (recall 0.04). It's
+  the rarest class, with 203 training cycles.
+- **Small dataset:** 61 training patients. Validation scores swing a lot between epochs,
+  so the chosen checkpoint is partly luck.
+- **It is not a diagnosis.** It flags sounds a doctor would listen for.
+
 ## Next steps
 
 - Move detection from the phone to the Raspberry Pi (onnxruntime) on live audio
   streamed from the phone and the ESP32 vest mics. In the Nafas design the ESP32 only
   collects audio, and all the AI runs on the Pi.
-- Fine-tune on our own vest recordings.
+- Fine-tune both models on our own vest recordings.
+- Lung model: try an ImageNet-pretrained CNN, which is the usual way past about 0.55 on ICBHI,
+  and add HF_Lung as extra training data.
 - Add more varied negative audio to cut environmental false alarms.

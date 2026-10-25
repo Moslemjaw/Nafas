@@ -4,8 +4,11 @@ ESC-50/
 coughvid/
 Coswara-Data/
 cough_dataset/
+lung_dataset/
+ICBHI_final_database/
 __pycache__/
 prep_log.txt
 features_log.txt
 train_log.txt
 train_log_r*.txt
+lung_train_log*.txt

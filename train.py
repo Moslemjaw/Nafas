@@ -64,7 +64,7 @@ def make_features(data: Path):
 
 
 # ---------- model ----------
-def build_model():
+def build_model(n_out=1):
     import torch.nn as nn
 
     def block(cin, cout):
@@ -76,7 +76,7 @@ def build_model():
 
     return nn.Sequential(block(1, 16), block(16, 32), block(32, 64), block(64, 128),
                          nn.AdaptiveAvgPool2d(1), nn.Flatten(),
-                         nn.Dropout(0.3), nn.Linear(128, 1))
+                         nn.Dropout(0.3), nn.Linear(128, n_out))
 
 
 def mix_noise(x, n, p, snr_db=(0.0, 20.0)):
