@@ -5,3 +5,6 @@ coughvid/
 Coswara-Data/
 cough_dataset/
 __pycache__/
+prep_log.txt
+features_log.txt
+train_log.txt
