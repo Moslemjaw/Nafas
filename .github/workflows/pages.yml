@@ -36,6 +36,10 @@ jobs:
         working-directory: web/dist
         run: |
           touch .nojekyll
+          # Vercel (Root Directory "web") also sees this branch: give it a web/ folder
+          # whose vercel.json says not to deploy, so gh-pages pushes are skipped there
+          mkdir -p web
+          echo '{ "git": { "deploymentEnabled": false } }' > web/vercel.json
           git init -q -b gh-pages
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
