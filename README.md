@@ -185,10 +185,29 @@ To run inference on a 1 s, 16 kHz mono window `y`:
 
 For a continuous stream, slide the 1 s window with a 0.5 s hop.
 
+## Phone prototype (`web/`)
+
+A React + Vite + TypeScript PWA runs the model in the phone's browser, using the phone
+mic, with nothing sent off the device. See [web/README.md](web/README.md).
+
+- `python train.py web` copies `model.onnx` and the mel filterbank / normalization into `web/public/model/`.
+- The TypeScript log-mel matches `train.py` (max difference 0.004, probabilities within 0.001).
+- Coughs are counted the way the training clips were cut: find each loud event and score
+  a 1 s window centered on it.
+- Tested in the browser on full recordings from 3 test-split Coswara participants:
+  - **Coughs:** 36 of the 37 loud events in their 6 cough recordings were counted.
+    "Expected" here means the events `librosa.effects.split` finds, the same rule that
+    cut the training clips, not hand-labeled coughs. The one miss was two coughs
+    0.65 s apart counted as one.
+  - **False alarms:** none in their breathing and counting recordings, or on test-split
+    ESC-50 sneezing, laughing and knocking clips.
+- `.github/workflows/pages.yml` deploys it to GitHub Pages, which provides the HTTPS a
+  phone needs for mic access.
+
 ## Next steps
 
-- Run the model on the Raspberry Pi (onnxruntime) on live audio streamed from the
-  ESP32 vest mics and the phone. In the Nafas design the ESP32 only collects audio,
-  and all the AI runs on the Pi.
+- Move detection from the phone to the Raspberry Pi (onnxruntime) on live audio
+  streamed from the phone and the ESP32 vest mics. In the Nafas design the ESP32 only
+  collects audio, and all the AI runs on the Pi.
 - Fine-tune on our own vest recordings.
 - Add more varied negative audio to cut environmental false alarms.

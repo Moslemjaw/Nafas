@@ -11,6 +11,7 @@ Usage:
   python train.py train    --data cough_dataset     # train, pick best on val, report test
       [--epochs 25 --noise 0.5]                     #   + background-noise mixing
   python train.py export   --data cough_dataset     # (re)export model.onnx from model.pt
+  python train.py web      --data cough_dataset     # copy model + mel config into web/public/model
 
 Outputs (in --data):
   features.npy   float16 [N, 64, 101] log-mel spectrograms, row order = labels.csv
@@ -254,13 +255,31 @@ def export(data: Path):
     print(f"exported {data / 'model.onnx'}  (threshold {ck['threshold']:.2f} on sigmoid(logit))")
 
 
+def export_web(data: Path, out: Path):
+    """model.onnx + everything the browser needs to compute identical features."""
+    import json
+    import shutil
+    import torch
+    ck = torch.load(data / "model.pt", map_location="cpu", weights_only=True)
+    out.mkdir(parents=True, exist_ok=True)
+    shutil.copy(data / "model.onnx", out / "cough.onnx")
+    mel = librosa.filters.mel(sr=SR, n_fft=N_FFT, n_mels=N_MELS, fmin=50, fmax=8000)
+    cfg = {"sr": SR, "n_fft": N_FFT, "hop": HOP, "n_mels": N_MELS, "frames": FRAMES,
+           "log_eps": 1e-6, "threshold": float(ck["threshold"]),
+           "mean": ck["mean"].squeeze(1).tolist(), "std": ck["std"].squeeze(1).tolist(),
+           "mel_fb": mel.tolist()}           # [n_mels][n_fft/2+1]
+    (out / "cough_config.json").write_text(json.dumps(cfg))
+    print(f"wrote {out / 'cough.onnx'} and {out / 'cough_config.json'}")
+
+
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("cmd", choices=["features", "train", "export"])
+    ap.add_argument("cmd", choices=["features", "train", "export", "web"])
     ap.add_argument("--data", type=Path, default=Path("cough_dataset"))
     ap.add_argument("--epochs", type=int, default=10)
     ap.add_argument("--bs", type=int, default=256)
     ap.add_argument("--lr", type=float, default=3e-3)
+    ap.add_argument("--web-out", type=Path, default=Path("web/public/model"))
     ap.add_argument("--noise", type=float, default=0.0,
                     help="probability of mixing a train not_cough clip into each sample")
     a = ap.parse_args()
@@ -268,6 +287,8 @@ def main():
         make_features(a.data)
     elif a.cmd == "export":
         export(a.data)
+    elif a.cmd == "web":
+        export_web(a.data, a.web_out)
     else:
         train(a.data, a.epochs, a.bs, a.lr, a.noise)
 
