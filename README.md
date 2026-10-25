@@ -213,7 +213,7 @@ crackle, wheeze or both**. It's trained on [ICBHI 2017](https://bhichallenge.med
 ```bash
 python lung_prep.py --icbhi ICBHI_final_database --split ICBHI_challenge_train_test.txt --out lung_dataset
 python train_lung.py features --data lung_dataset
-python train_lung.py train --data lung_dataset --recnorm --mixup 0.4 --epochs 40
+python train_lung.py train --data lung_dataset --arch resnet18 --recnorm --mixup 0.4 --epochs 30 --lr 1e-3
 ```
 
 - **Cycles:** 6,781 cycles cut from the recordings at 16 kHz. Each is repeat-padded or
@@ -225,21 +225,37 @@ python train_lung.py train --data lung_dataset --recnorm --mixup 0.4 --epochs 40
   unchanged. Val is 16 of the train patients.
 - **Features:** log-mel spectrogram, 64 bands from 50 Hz to 2 kHz (where lung sounds
   are), 64 ms window (fine frequency detail for tonal wheezes), 10 ms hop → 64 × 401.
-- **Model:** the same CNN as the cough model, with 4 outputs and square-root class weights.
+- **Model:** either the cough CNN with 4 outputs (`--arch cnn`, 294k parameters) or an
+  ImageNet-pretrained ResNet18 (`--arch resnet18`, 11.2M parameters). For ResNet18 the
+  log-mel is stretched to 128 bands and copied to 3 channels. Both use square-root class weights.
 - **Score (the ICBHI metric):** Sp = normal cycles called normal; Se = abnormal cycles
   called the exact right class; Score = (Se + Sp) / 2.
 
 ### Results (official test set)
 
-| | Round 1 | **Round 2 (final)** |
-|---|---|---|
-| Training | 60 epochs | 40 epochs, per-recording normalization, mixup 0.4 |
-| Se | 0.373 | **0.412** |
-| Sp | 0.508 | **0.636** |
-| **ICBHI score** | 0.440 | **0.524** |
-| Normal vs abnormal score | 0.543 | **0.598** |
+| | Round 1 | Round 2 | **Round 3 (final)** |
+|---|---|---|---|
+| Model | small CNN | small CNN | **ResNet18, ImageNet-pretrained** |
+| Training | 60 epochs | 40 epochs, per-recording norm, mixup 0.4 | 30 epochs, per-recording norm, mixup 0.4, lr 1e-3 |
+| Se | 0.373 | **0.412** | 0.371 |
+| Sp | 0.508 | 0.636 | **0.703** |
+| **ICBHI score** | 0.440 | 0.524 | **0.537** |
+| Normal vs abnormal score | 0.543 | 0.598 | **0.608** |
+| Size (ONNX) | 1.2 MB | 1.2 MB | 44.7 MB |
 
-Per-class recall (round 2): normal 0.64, crackle 0.46, wheeze 0.48, both 0.04.
+Per-class recall:
+
+| | normal | crackle | wheeze | both |
+|---|---|---|---|---|
+| Round 2 (CNN) | 0.64 | 0.46 | **0.48** | 0.04 |
+| Round 3 (ResNet18) | **0.70** | 0.46 | 0.32 | **0.14** |
+
+Pretraining helped, but less than hoped: +0.013 overall, from a single run each.
+Validation (16 patients) is noisy enough that a difference this small could partly be
+chance. The clearer gain is robustness to the stethoscope (below): ResNet18 no longer
+calls almost every Littmann 3200 cycle abnormal. The trade-off is that it catches fewer
+wheezes than the small CNN. ResNet18 runs in about 10 ms per cycle on a laptop CPU,
+which is fine for a Raspberry Pi 5.
 
 For comparison, published results on this split are roughly 0.50–0.55 for small CNNs
 trained from scratch and 0.60–0.65 for the best (mostly pretrained) models.
@@ -252,21 +268,22 @@ wheezes. On the vest this becomes a running average per mic.
 
 In ICBHI the stethoscope type is tangled up with the labels:
 
-| Stethoscope | Train cycles | Test cycles | Test score (round 2) |
-|---|---|---|---|
-| AKG C417L | 2,109 | 1,836 | 0.578 |
-| Meditron | 783 (73% normal) | 459 | 0.527 |
-| Littmann 3200 | **28** (mostly wheeze) | 461 (mostly normal) | **0.374** |
+| Stethoscope | Train cycles | Test cycles | Score, round 2 (CNN) | Score, round 3 (ResNet18) |
+|---|---|---|---|---|
+| AKG C417L | 2,109 | 1,836 | **0.578** | 0.535 |
+| Meditron | 783 (73% normal) | 459 | 0.527 | **0.607** |
+| Littmann 3200 | **28** (mostly wheeze) | 461 (mostly normal) | 0.374 | **0.448** |
 
 The model barely saw a Littmann 3200 in training, and what it saw was mostly wheezes,
-so it calls most Littmann 3200 test cycles abnormal. The Nafas vest uses one mic type
+so the small CNN calls most Littmann 3200 test cycles abnormal (Sp 0.09). Pretrained
+ResNet18 handles it better (Sp 0.57), but it's still the weakest device. The Nafas vest uses one mic type
 of its own, so this mix of devices won't exist there. But it does mean the model must be
 fine-tuned on vest recordings before its output means anything.
 
 ### Limitations
 
-- **"Both" (crackle + wheeze together) is almost never detected** (recall 0.04). It's
-  the rarest class, with 203 training cycles.
+- **"Both" (crackle + wheeze together) is rarely detected** (recall 0.14 with ResNet18,
+  0.04 with the CNN). It's the rarest class, with 203 training cycles.
 - **Small dataset:** 61 training patients. Validation scores swing a lot between epochs,
   so the chosen checkpoint is partly luck.
 - **It is not a diagnosis.** It flags sounds a doctor would listen for.
@@ -277,6 +294,6 @@ fine-tuned on vest recordings before its output means anything.
   streamed from the phone and the ESP32 vest mics. In the Nafas design the ESP32 only
   collects audio, and all the AI runs on the Pi.
 - Fine-tune both models on our own vest recordings.
-- Lung model: try an ImageNet-pretrained CNN, which is the usual way past about 0.55 on ICBHI,
-  and add HF_Lung as extra training data.
+- Lung model: add HF_Lung as extra training data, and average several training runs
+  (seeds) to get steadier numbers and a steadier model.
 - Add more varied negative audio to cut environmental false alarms.

@@ -2,11 +2,14 @@
 Nafas - lung sound classifier training (Capstone 1)
 
 Classifies each respiratory cycle from lung_prep.py as normal / crackle / wheeze / both,
-with the same small CNN as the cough model (train.py), 4 outputs instead of 1.
+with either the small cough CNN (train.py, 4 outputs) or an ImageNet-pretrained ResNet18.
 
 Usage:
+  pip install torchvision==0.20.1 --index-url https://download.pytorch.org/whl/cu121
+
   python train_lung.py features --data lung_dataset   # once: log-mels -> features.npy
-  python train_lung.py train    --data lung_dataset   # train, pick best on val, report test
+  python train_lung.py train    --data lung_dataset --arch resnet18 --recnorm \
+                                --mixup 0.4 --epochs 30 --lr 1e-3   # the final model
 
 Scored the ICBHI 2017 way:
   Sp    = normal cycles classified normal
@@ -100,6 +103,30 @@ def icbhi_scores(y, pred):
     return dict(se=se, sp=sp, score=(se + sp) / 2, se_any=se2, cm=cm)
 
 
+def build_lung_model(arch, pretrained=True):
+    """'cnn': the small cough CNN (294k params). 'resnet18': ImageNet-pretrained
+    ResNet18 (11M params); the 1-channel log-mel is stretched to 128 bands and copied
+    to 3 channels so the pretrained filters fit."""
+    import torch.nn as nn
+    if arch == "cnn":
+        return build_model(n_out=4)
+    import torchvision
+
+    class ResNetLung(nn.Module):
+        def __init__(self):
+            super().__init__()
+            w = torchvision.models.ResNet18_Weights.IMAGENET1K_V1 if pretrained else None
+            self.net = torchvision.models.resnet18(weights=w)
+            self.net.fc = nn.Sequential(nn.Dropout(0.3), nn.Linear(512, 4))
+
+        def forward(self, x):
+            x = nn.functional.interpolate(x, scale_factor=(2, 1), mode="bilinear",
+                                          align_corners=False)
+            return self.net(x.expand(-1, 3, -1, -1))
+
+    return ResNetLung()
+
+
 def recording_norm(X, recordings):
     """Subtract each recording's average log-mel spectrum (over all its cycles and
     frames), per band. A stethoscope's frequency response is a constant offset in
@@ -123,7 +150,7 @@ def predict(model, X, idx, mean, std, device, bs=256):
     return np.concatenate(out)
 
 
-def train(data: Path, epochs: int, bs: int, lr: float, recnorm: bool, mixup: float):
+def train(data: Path, epochs: int, bs: int, lr: float, recnorm: bool, mixup: float, arch: str):
     import torch
     import torch.nn as nn
 
@@ -151,7 +178,8 @@ def train(data: Path, epochs: int, bs: int, lr: float, recnorm: bool, mixup: flo
     weights = torch.tensor(np.sqrt(counts.sum() / (4 * counts)), dtype=torch.float32, device=device)
     print("class weights:", dict(zip(LABELS, weights.cpu().numpy().round(2))))
 
-    model = build_model(n_out=4).to(device)
+    model = build_lung_model(arch).to(device)
+    print(f"model: {arch}, {sum(p.numel() for p in model.parameters()):,} params")
     loss_fn = nn.CrossEntropyLoss(weight=weights)
     opt = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=1e-3)
     steps = epochs * ((len(split["train"]) + bs - 1) // bs)
@@ -186,7 +214,7 @@ def train(data: Path, epochs: int, bs: int, lr: float, recnorm: bool, mixup: flo
             best = m["score"]
             mark = "  *"
             torch.save({"model": model.state_dict(), "mean": mean.cpu(), "std": std.cpu(),
-                        "recnorm": recnorm}, data / "model.pt")
+                        "recnorm": recnorm, "arch": arch}, data / "model.pt")
         if ep % 5 == 0 or mark:
             print(f"epoch {ep:3d}  loss {tot / len(idx):.4f}  val Se {m['se']:.3f}  "
                   f"Sp {m['sp']:.3f}  Score {m['score']:.3f}{mark}")
@@ -224,7 +252,7 @@ def train(data: Path, epochs: int, bs: int, lr: float, recnorm: bool, mixup: flo
 def export(data: Path):
     import torch
     ck = torch.load(data / "model.pt", map_location="cpu", weights_only=True)
-    model = build_model(n_out=4)
+    model = build_lung_model(ck.get("arch", "cnn"), pretrained=False)
     model.load_state_dict(ck["model"])
     model.eval()
     torch.onnx.export(model, torch.zeros(1, 1, N_MELS, FRAMES), str(data / "model.onnx"),
@@ -232,7 +260,7 @@ def export(data: Path):
                       dynamic_axes={"logmel": {0: "batch"}, "logits": {0: "batch"}})
     cfg = {"sr": SR, "seconds": SECONDS, "n_fft": N_FFT, "hop": HOP, "n_mels": N_MELS,
            "fmin": FMIN, "fmax": FMAX, "frames": FRAMES, "log_eps": 1e-6, "labels": LABELS,
-           "recording_norm": bool(ck.get("recnorm", False)),
+           "recording_norm": bool(ck.get("recnorm", False)), "arch": ck.get("arch", "cnn"),
            "mean": ck["mean"].squeeze(1).tolist(), "std": ck["std"].squeeze(1).tolist()}
     (data / "lung_config.json").write_text(json.dumps(cfg))
     print(f"exported {data / 'model.onnx'} and {data / 'lung_config.json'}")
@@ -248,13 +276,14 @@ def main():
     ap.add_argument("--recnorm", action="store_true",
                     help="subtract each recording's mean spectrum (removes stethoscope color)")
     ap.add_argument("--mixup", type=float, default=0.0, help="mixup alpha, 0 = off")
+    ap.add_argument("--arch", choices=["cnn", "resnet18"], default="cnn")
     a = ap.parse_args()
     if a.cmd == "features":
         make_features(a.data)
     elif a.cmd == "export":
         export(a.data)
     else:
-        train(a.data, a.epochs, a.bs, a.lr, a.recnorm, a.mixup)
+        train(a.data, a.epochs, a.bs, a.lr, a.recnorm, a.mixup, a.arch)
 
 
 if __name__ == "__main__":
