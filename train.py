@@ -9,6 +9,7 @@ Usage:
 
   python train.py features --data cough_dataset     # once: log-mels -> features.npy
   python train.py train    --data cough_dataset     # train, pick best on val, report test
+      [--epochs 25 --noise 0.5]                     #   + background-noise mixing
   python train.py export   --data cough_dataset     # (re)export model.onnx from model.pt
 
 Outputs (in --data):
@@ -77,6 +78,20 @@ def build_model():
                          nn.Dropout(0.3), nn.Linear(128, 1))
 
 
+def mix_noise(x, n, p, snr_db=(0.0, 20.0)):
+    """Add background clip n to x (both raw log-mel [B,M,T]) at a random SNR, with prob p.
+    Mixing is done on mel power: log(exp(x) + g * exp(n))."""
+    import torch
+    b = x.shape[0]
+    snr = torch.empty(b, 1, 1, device=x.device).uniform_(*snr_db)
+    px = torch.logsumexp(x.flatten(1), 1)[:, None, None]
+    pn = torch.logsumexp(n.flatten(1), 1)[:, None, None]
+    log_g = px - pn - snr * (np.log(10) / 10)
+    mixed = torch.logaddexp(x, n + log_g)
+    on = torch.rand(b, 1, 1, device=x.device) < p
+    return torch.where(on, mixed, x)
+
+
 def augment(x):
     """SpecAugment-style: random gain, time shift, one freq mask, one time mask."""
     import torch
@@ -131,7 +146,7 @@ def best_threshold(y, p):
 
 
 # ---------- train ----------
-def train(data: Path, epochs: int, bs: int, lr: float):
+def train(data: Path, epochs: int, bs: int, lr: float, noise: float):
     import torch
     import torch.nn as nn
 
@@ -160,6 +175,10 @@ def train(data: Path, epochs: int, bs: int, lr: float):
     steps = epochs * ((len(split["train"]) + bs - 1) // bs)
     sched = torch.optim.lr_scheduler.OneCycleLR(opt, max_lr=lr, total_steps=steps)
 
+    # background pool for noise mixing: every not_cough clip in train
+    noise_idx = split["train"][y_all[split["train"]] == 0]
+    print(f"noise mixing: p={noise}, pool {len(noise_idx)} clips")
+
     best_f1, yv = -1.0, y_all[split["val"]]
     for ep in range(1, epochs + 1):
         model.train()
@@ -167,6 +186,10 @@ def train(data: Path, epochs: int, bs: int, lr: float):
         for sel in tqdm(batches(split["train"], bs, True), total=steps // epochs,
                         desc=f"epoch {ep}/{epochs}", leave=False):
             x = torch.from_numpy(X[sel].astype(np.float32)).to(device)
+            if noise > 0:
+                nsel = np.sort(np.random.choice(noise_idx, len(sel)))
+                nz = torch.from_numpy(X[nsel].astype(np.float32)).to(device)
+                x = mix_noise(x, nz[torch.randperm(len(sel), device=device)], noise)
             x = augment(((x - mean) / std)[:, None])
             yb = torch.from_numpy(y_all[sel]).to(device)
             loss = loss_fn(model(x).squeeze(1), yb)
@@ -238,13 +261,15 @@ def main():
     ap.add_argument("--epochs", type=int, default=10)
     ap.add_argument("--bs", type=int, default=256)
     ap.add_argument("--lr", type=float, default=3e-3)
+    ap.add_argument("--noise", type=float, default=0.0,
+                    help="probability of mixing a train not_cough clip into each sample")
     a = ap.parse_args()
     if a.cmd == "features":
         make_features(a.data)
     elif a.cmd == "export":
         export(a.data)
     else:
-        train(a.data, a.epochs, a.bs, a.lr)
+        train(a.data, a.epochs, a.bs, a.lr, a.noise)
 
 
 if __name__ == "__main__":

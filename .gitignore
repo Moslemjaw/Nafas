@@ -8,3 +8,4 @@ __pycache__/
 prep_log.txt
 features_log.txt
 train_log.txt
+train_log_r*.txt
