@@ -4,6 +4,8 @@ A React + Vite + TypeScript PWA that detects coughs from the phone microphone.
 The model runs **in the browser** (onnxruntime-web), so audio never leaves the phone.
 In the full Nafas design the model runs on the Raspberry Pi; this is the prototype step.
 
+**Live:** https://moslemjaw.github.io/Nafas/
+
 ## Run
 
 ```bash
