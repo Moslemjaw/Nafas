@@ -12,3 +12,4 @@ features_log.txt
 train_log.txt
 train_log_r*.txt
 lung_train_log*.txt
+test_sounds/
