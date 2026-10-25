@@ -251,27 +251,6 @@ footer {
   margin-top: 4px;
 }
 
-.pacer {
-  position: relative;
-  width: 200px;
-  height: 200px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.ring {
-  position: absolute;
-  inset: 0;
-  border-radius: 50%;
-  background: var(--accent-soft);
-  opacity: 0.55;
-}
-
-.ring.on {
-  opacity: 0.9;
-}
-
 .pacer-text {
   position: relative;
   display: flex;
@@ -480,25 +459,253 @@ footer {
 .legend {
   display: flex;
   flex-wrap: wrap;
-  align-items: center;
-  gap: 6px;
+  justify-content: center;
+  gap: 4px 14px;
   margin: 10px 0 6px;
   font-size: 13px;
   color: var(--text);
 }
 
-.legend .dot {
+.legend > span {
+  white-space: nowrap;
+}
+
+.dot {
   width: 10px;
   height: 10px;
   border-radius: 50%;
   display: inline-block;
+  background: var(--border);
 }
 
-.legend .dot.normal {
+.dot.normal {
   background: var(--ok);
 }
 
-.legend .dot.abnormal {
+.dot.abnormal {
   background: var(--hot);
-  margin-left: 8px;
+}
+
+.spot-list li {
+  padding: 7px 0;
+  white-space: nowrap;
+}
+
+/* ---------- lung check: compact step card ---------- */
+
+.step .row {
+  align-items: center;
+}
+
+.step-title {
+  margin: 10px 0 2px;
+  font-size: 18px;
+}
+
+.step-title .muted {
+  font-weight: 400;
+}
+
+.step .chest {
+  /* keep picture + tip + button on one phone screen */
+  max-width: min(190px, calc(36dvh * 200 / 240));
+}
+
+.step > .btn {
+  margin-top: 12px;
+}
+
+.stepper {
+  display: flex;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.stepper li {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text);
+  background: var(--border);
+}
+
+.stepper li.now {
+  box-shadow: 0 0 0 2px var(--card), 0 0 0 4px var(--accent);
+  color: var(--text-h);
+}
+
+.stepper li.normal {
+  background: var(--ok);
+  color: #fff;
+}
+
+.stepper li.abnormal {
+  background: var(--hot);
+  color: #fff;
+}
+
+.breath-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.breath-grid li {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  padding: 8px 4px;
+  border-radius: 10px;
+  background: var(--bg);
+  font-size: 12px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.breath-grid .breath-label {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-h);
+  line-height: 1.2;
+}
+
+.breath-grid li.crackle,
+.breath-grid li.wheeze,
+.breath-grid li.both {
+  background: var(--hot-bg);
+}
+
+.breath-grid li.crackle .breath-label,
+.breath-grid li.wheeze .breath-label,
+.breath-grid li.both .breath-label {
+  color: var(--hot);
+}
+
+.more summary {
+  cursor: pointer;
+  font-weight: 600;
+  color: var(--text-h);
+}
+
+.more[open] summary {
+  margin-bottom: 8px;
+}
+
+/* ---------- lung check: full-screen recording view ---------- */
+
+.session {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: max(16px, env(safe-area-inset-top)) 16px max(20px, env(safe-area-inset-bottom));
+  background: var(--bg);
+}
+
+.session-top {
+  width: 100%;
+  max-width: 448px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.session-spot {
+  width: 76px;
+  flex: none;
+}
+
+.session-spot .chest {
+  margin: 0;
+}
+
+.session-name {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text-h);
+}
+
+.session-pacer {
+  position: relative;
+  width: min(78vw, 46dvh, 340px);
+  aspect-ratio: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.session-pacer .pacer-label {
+  font-size: clamp(28px, 8vw, 40px);
+}
+
+.ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: var(--accent-soft);
+  opacity: 0.55;
+}
+
+.ring.on {
+  opacity: 0.9;
+}
+
+.ring.spin {
+  background: none;
+  border: 6px solid var(--accent-soft);
+  border-top-color: var(--accent);
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    rotate: 360deg;
+  }
+}
+
+.breath-dots {
+  display: flex;
+  gap: 10px;
+}
+
+.breath-dots span {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--border);
+}
+
+.breath-dots span.done {
+  background: var(--accent);
+}
+
+.breath-dots span.now {
+  background: var(--accent-soft);
+  box-shadow: 0 0 0 2px var(--accent);
+}
+
+.session-cancel {
+  width: 100%;
+  max-width: 448px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ring.spin {
+    animation: none;
+  }
 }
