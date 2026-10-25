@@ -10,6 +10,7 @@ Usage:
   python train_lung.py features --data lung_dataset   # once: log-mels -> features.npy
   python train_lung.py train    --data lung_dataset --arch resnet18 --recnorm \
                                 --mixup 0.4 --epochs 30 --lr 1e-3   # the final model
+  python train_lung.py web      --data lung_dataset   # copy model + mel config into web/public/model
 
 Scored the ICBHI 2017 way:
   Sp    = normal cycles classified normal
@@ -266,9 +267,21 @@ def export(data: Path):
     print(f"exported {data / 'model.onnx'} and {data / 'lung_config.json'}")
 
 
+def export_web(data: Path, out: Path):
+    """lung.onnx + the mel filterbank and normalization for web/src/lung.ts."""
+    import shutil
+    cfg = json.loads((data / "lung_config.json").read_text())
+    cfg["mel_fb"] = librosa.filters.mel(sr=SR, n_fft=N_FFT, n_mels=N_MELS,
+                                        fmin=FMIN, fmax=FMAX).tolist()
+    out.mkdir(parents=True, exist_ok=True)
+    shutil.copy(data / "model.onnx", out / "lung.onnx")
+    (out / "lung_config.json").write_text(json.dumps(cfg))
+    print(f"wrote {out / 'lung.onnx'} and {out / 'lung_config.json'}")
+
+
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("cmd", choices=["features", "train", "export"])
+    ap.add_argument("cmd", choices=["features", "train", "export", "web"])
     ap.add_argument("--data", type=Path, default=Path("lung_dataset"))
     ap.add_argument("--epochs", type=int, default=60)
     ap.add_argument("--bs", type=int, default=64)
@@ -277,11 +290,14 @@ def main():
                     help="subtract each recording's mean spectrum (removes stethoscope color)")
     ap.add_argument("--mixup", type=float, default=0.0, help="mixup alpha, 0 = off")
     ap.add_argument("--arch", choices=["cnn", "resnet18"], default="cnn")
+    ap.add_argument("--web-out", type=Path, default=Path("web/public/model"))
     a = ap.parse_args()
     if a.cmd == "features":
         make_features(a.data)
     elif a.cmd == "export":
         export(a.data)
+    elif a.cmd == "web":
+        export_web(a.data, a.web_out)
     else:
         train(a.data, a.epochs, a.bs, a.lr, a.recnorm, a.mixup, a.arch)
 

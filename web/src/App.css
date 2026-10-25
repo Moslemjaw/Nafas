@@ -203,3 +203,117 @@ footer {
   text-align: center;
   padding: 0 8px;
 }
+
+.tabs {
+  display: flex;
+  gap: 4px;
+  margin-top: 12px;
+  padding: 4px;
+  border-radius: 12px;
+  background: var(--border);
+}
+
+.tabs button {
+  flex: 1;
+  padding: 8px;
+  border: 0;
+  border-radius: 9px;
+  background: none;
+  font: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.tabs button[aria-selected='true'] {
+  background: var(--card);
+  color: var(--text-h);
+}
+
+.view {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.view[hidden] {
+  display: none;
+}
+
+.steps {
+  margin: 0;
+  padding-left: 20px;
+  font-size: 14px;
+}
+
+.steps li + li {
+  margin-top: 4px;
+}
+
+.pacer {
+  position: relative;
+  width: 200px;
+  height: 200px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: var(--accent-soft);
+  opacity: 0.55;
+}
+
+.ring.on {
+  opacity: 0.9;
+}
+
+.pacer-text {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+.pacer-label {
+  font-size: 26px;
+  font-weight: 700;
+  color: var(--text-h);
+}
+
+.headline {
+  margin: 0 0 8px;
+  font-weight: 600;
+  color: var(--text-h);
+}
+
+.error.left {
+  text-align: left;
+  margin-bottom: 8px;
+}
+
+.chip {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 600;
+  background: var(--border);
+  color: var(--text-h);
+}
+
+.chip.crackle,
+.chip.wheeze,
+.chip.both {
+  background: var(--hot-bg);
+  color: var(--hot);
+}
+
+.log.full {
+  max-height: none;
+}

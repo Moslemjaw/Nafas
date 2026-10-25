@@ -9,7 +9,7 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.svg', 'capture-worklet.js', 'model/*'],
+      includeAssets: ['favicon.svg', 'capture-worklet.js', 'model/cough*', 'model/lung_config.json'],
       manifest: {
         name: 'Nafas Cough Detector',
         short_name: 'Nafas',
@@ -25,9 +25,18 @@ export default defineConfig({
         ],
       },
       workbox: {
-        // model + onnxruntime wasm (~14 MB) are precached so the app works offline
+        // cough model + onnxruntime wasm (~14 MB) are precached so the app works offline
         globPatterns: ['**/*.{js,mjs,css,html,svg,png,wasm,onnx,json}'],
+        // the 45 MB lung model downloads only when Lung check is first opened, then is cached
+        globIgnores: ['**/lung.onnx'],
         maximumFileSizeToCacheInBytes: 30 * 1024 * 1024,
+        runtimeCaching: [
+          {
+            urlPattern: /\/model\/lung\.onnx$/,
+            handler: 'CacheFirst',
+            options: { cacheName: 'lung-model', expiration: { maxEntries: 1 } },
+          },
+        ],
       },
     }),
   ],

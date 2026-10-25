@@ -8,10 +8,8 @@
 // cough_prep.py peak-normalized each *recording* to 0.9, so a live window is scaled
 // by the loudest sample of the last PEAK_SECONDS instead (capped at MAX_GAIN, so
 // silence is not blown up into noise).
-import * as ort from 'onnxruntime-web/wasm'
-import wasmUrl from 'onnxruntime-web/ort-wasm-simd-threaded.wasm?url'
-import mjsUrl from 'onnxruntime-web/ort-wasm-simd-threaded.mjs?url'
 import { LogMel, type CoughConfig } from './features'
+import { ort } from './ort'
 
 export const HOP = 4000 // live meter: one score every 0.25 s
 const PEAK_SECONDS = 10
@@ -39,9 +37,6 @@ export interface CoughEvent {
   t: number // seconds since start, center of the cough
   p: number
 }
-
-ort.env.wasm.wasmPaths = { wasm: wasmUrl, mjs: mjsUrl }
-ort.env.wasm.numThreads = 1 // threads need cross-origin isolation, which Pages can't set
 
 export class Model {
   readonly cfg: CoughConfig
