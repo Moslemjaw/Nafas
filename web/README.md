@@ -15,10 +15,10 @@ npm run build      # production build in dist/
 npm run preview    # serve dist/ on http://localhost:4173
 ```
 
-A phone needs **HTTPS** to use the mic. The easiest way is GitHub Pages: the
-`.github/workflows/pages.yml` workflow builds and deploys this folder on every push to
-`main` (in the repo settings, set **Pages → Source** to **GitHub Actions**). Open the
-page on the phone, then use **Add to Home Screen** to install it. After the first
+A phone needs **HTTPS** to use the mic, which GitHub Pages provides. On every push to
+`main` that changes `web/`, the `.github/workflows/pages.yml` workflow builds this
+folder and publishes it to the `gh-pages` branch, and Pages serves that branch. Open
+the page on the phone, then use **Add to Home Screen** to install it. After the first
 load it works offline.
 
 ## How it works
