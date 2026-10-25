@@ -187,6 +187,8 @@ For a continuous stream, slide the 1 s window with a 0.5 s hop.
 
 ## Next steps
 
-- Port to ESP32: int8 quantization, on-device log-mel computation, and TFLite Micro / ESP-DL.
-- Fine-tune on recordings from the target microphone.
+- Run the model on the Raspberry Pi (onnxruntime) on live audio streamed from the
+  ESP32 vest mics and the phone. In the Nafas design the ESP32 only collects audio,
+  and all the AI runs on the Pi.
+- Fine-tune on our own vest recordings.
 - Add more varied negative audio to cut environmental false alarms.
