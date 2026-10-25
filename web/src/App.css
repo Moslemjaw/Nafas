@@ -317,3 +317,188 @@ footer {
 .log.full {
   max-height: none;
 }
+
+.choices {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.btn-sub {
+  display: block;
+  font-size: 13px;
+  font-weight: 400;
+  opacity: 0.85;
+}
+
+.btn.secondary {
+  background: var(--border);
+  color: var(--text-h);
+}
+
+.center {
+  text-align: center;
+  margin-top: 6px;
+}
+
+.tip {
+  margin: 10px 0 0;
+  font-size: 14px;
+}
+
+.chest {
+  margin: 4px auto 0;
+  max-width: 220px;
+  text-align: center;
+}
+
+.chest svg {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.chest figcaption {
+  font-size: 13px;
+  color: var(--text);
+}
+
+.chest .torso {
+  fill: var(--skin);
+  stroke: var(--border-strong);
+  stroke-width: 1.5;
+}
+
+.chest .lung {
+  fill: var(--lung);
+  stroke: var(--lung-edge);
+  stroke-width: 1.2;
+}
+
+.chest .bone {
+  fill: none;
+  stroke: var(--border-strong);
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+
+.chest .bone.thin {
+  stroke-width: 1.2;
+}
+
+.chest .bone.dashed {
+  stroke-dasharray: 4 4;
+}
+
+.chest .blade {
+  fill: none;
+  stroke: var(--border-strong);
+  stroke-width: 1.5;
+  stroke-linejoin: round;
+}
+
+.chest .side-label {
+  font-size: 16px;
+  font-weight: 700;
+  fill: var(--text);
+}
+
+.chest .spot circle {
+  fill: var(--card);
+  stroke: var(--text);
+  stroke-width: 2;
+}
+
+.chest .spot text {
+  font-size: 12px;
+  font-weight: 700;
+  fill: var(--text-h);
+}
+
+.chest .spot.current circle {
+  fill: var(--accent);
+  stroke: var(--accent);
+}
+
+.chest .spot.current text {
+  fill: #fff;
+}
+
+.chest .spot.current .pulse {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 2;
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: pulse 1.4s ease-out infinite;
+}
+
+.chest .spot.normal circle {
+  fill: var(--ok);
+  stroke: var(--ok);
+}
+
+.chest .spot.abnormal circle {
+  fill: var(--hot);
+  stroke: var(--hot);
+}
+
+.chest .spot.normal text,
+.chest .spot.abnormal text {
+  fill: #fff;
+}
+
+@keyframes pulse {
+  from {
+    transform: scale(0.7);
+    opacity: 1;
+  }
+  to {
+    transform: scale(1.5);
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chest .spot.current .pulse {
+    animation: none;
+  }
+}
+
+.diagrams {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+}
+
+.diagrams .chest {
+  flex: 1;
+  margin: 0;
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin: 10px 0 6px;
+  font-size: 13px;
+  color: var(--text);
+}
+
+.legend .dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.legend .dot.normal {
+  background: var(--ok);
+}
+
+.legend .dot.abnormal {
+  background: var(--hot);
+  margin-left: 8px;
+}

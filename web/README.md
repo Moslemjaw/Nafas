@@ -3,9 +3,14 @@
 A React + Vite + TypeScript PWA with two tabs:
 
 - **Coughs:** listens through the phone mic and counts coughs live.
-- **Lung check:** you press the phone's mic on the chest and breathe along with an
-  on-screen circle for 6 breaths. Each breath is classified as normal, crackles, wheeze
-  or both by the ICBHI-trained lung model.
+- **Lung check:** a guided, step-by-step check at **4 spots** (front left and right,
+  below the collarbones; back left and right, below the shoulder blades, with a
+  helper), or **2 front spots** for someone checking alone. Each step shows a front or
+  back chest diagram with the spot to place the phone. You then breathe along with an
+  on-screen circle for 6 breaths, and each breath is classified as normal, crackles,
+  wheeze or both by the ICBHI-trained lung model. The summary colors each spot on the
+  diagrams (flagged when 2 or more of its 6 breaths sound abnormal) and notes when left
+  and right sound different.
 
 Both models run **in the browser** (onnxruntime-web), so audio never leaves the phone.
 In the full Nafas design the model runs on the Raspberry Pi; this is the prototype step.
@@ -36,7 +41,8 @@ load it works offline.
 | `src/detector.ts` | Finds loud events the same way `cough_prep.py` cut the training clips, scores a 1 s window centered on each one, and counts it as a cough above the threshold. A sliding window every 0.25 s drives the live meter. |
 | `src/CoughView.tsx` | Cough tab: live meter, 30 s graph, cough log, file test |
 | `src/lung.ts` | Lung analysis, done the way the model was trained: peak-normalize the recording, one 4 s window per breath, log-mel, subtract each band's mean over the recording, then the model |
-| `src/LungView.tsx` | Lung tab: breathing pacer (2 s in, 2 s out, so each 4 s window is one breath), per-breath results, file test |
+| `src/LungView.tsx` | Lung tab: choose 4 or 2 spots, one step per spot with a breathing pacer (2 s in, 2 s out, so each 4 s window is one breath), per-spot results, summary, file test |
+| `src/ChestDiagram.tsx`, `src/spots.ts` | Front/back torso drawings with the lungs, and the spot positions and placement tips |
 | `src/features.ts` | Shared log-mel code: a DFT for the cough model's 400-point window, and an FFT for the lung model's 1024-point window |
 | `public/model/` | `cough.*` from `python train.py web`, and `lung.*` from `python train_lung.py web` |
 

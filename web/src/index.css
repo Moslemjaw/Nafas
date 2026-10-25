@@ -8,6 +8,11 @@
   --accent-soft: #b9cdf3;
   --hot: #e0453a;
   --hot-bg: #fdeceb;
+  --ok: #2e9d62;
+  --skin: #f3ece6;
+  --lung: #f6c9cf;
+  --lung-edge: #e29aa4;
+  --border-strong: #b9b4bf;
 
   font: 16px/1.45 system-ui, 'Segoe UI', Roboto, sans-serif;
   color: var(--text);
@@ -27,6 +32,11 @@
     --accent-soft: #34466b;
     --hot: #ff6b5e;
     --hot-bg: #3a1c1a;
+    --ok: #3fb97a;
+    --skin: #26232b;
+    --lung: #5a2f37;
+    --lung-edge: #8a4a55;
+    --border-strong: #55505e;
     color-scheme: dark;
   }
 }

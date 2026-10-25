@@ -1,12 +1,14 @@
 import { useEffect, useRef, useState } from 'react'
 import { decodeFile, SR, startMic, type Mic } from './audio'
+import { ChestDiagram } from './ChestDiagram'
+import { SPOTS, type Side, type Spot, type SpotState } from './spots'
 import { STOP_COUGH } from './events'
 import { LungModel, type LungResult } from './lung'
 
 const BASE = import.meta.env.BASE_URL
 const BREATHS = 6
 const BREATH_SECONDS = 4 // must match the model's window: 2 s in, 2 s out
-const COUNTDOWN = 3
+const ABNORMAL_BREATHS = 2 // a spot is flagged when at least this many breaths sound abnormal
 
 const NAMES: Record<string, string> = {
   normal: 'Normal',
@@ -15,15 +17,38 @@ const NAMES: Record<string, string> = {
   both: 'Crackles + wheeze',
 }
 
+const PLANS = {
+  four: ['front-left', 'front-right', 'back-left', 'back-right'],
+  two: ['front-left', 'front-right'],
+}
+
 type Phase =
   | { kind: 'idle' }
   | { kind: 'countdown'; left: number }
   | { kind: 'recording'; elapsed: number }
   | { kind: 'analyzing' }
 
-interface Shown {
-  source: string
-  result: LungResult
+const spotById = (id: string) => SPOTS.find((s) => s.id === id)!
+
+function abnormalBreaths(r: LungResult) {
+  return r.breaths.filter((b) => b.label !== 'normal').length
+}
+
+function spotState(r: LungResult | undefined): SpotState {
+  if (!r) return 'todo'
+  return abnormalBreaths(r) >= ABNORMAL_BREATHS ? 'abnormal' : 'normal'
+}
+
+function headline({ breaths, counts }: LungResult) {
+  const n = breaths.length
+  const crackles = counts.crackle + counts.both
+  const wheezes = counts.wheeze + counts.both
+  if (n === 0) return 'The recording was too short to check.'
+  if (crackles === 0 && wheezes === 0) return `All ${n} breaths sounded normal.`
+  const parts = []
+  if (wheezes) parts.push(`wheezing in ${wheezes} of ${n}`)
+  if (crackles) parts.push(`crackles in ${crackles} of ${n}`)
+  return `Possible ${parts.join(' and ')} breaths.`
 }
 
 export default function LungView() {
@@ -31,7 +56,10 @@ export default function LungView() {
   const [progress, setProgress] = useState(0)
   const [error, setError] = useState('')
   const [phase, setPhase] = useState<Phase>({ kind: 'idle' })
-  const [shown, setShown] = useState<Shown | null>(null)
+  const [plan, setPlan] = useState<Spot[] | null>(null)
+  const [step, setStep] = useState(0)
+  const [results, setResults] = useState<Record<string, LungResult>>({})
+  const [fileResult, setFileResult] = useState<{ name: string; result: LungResult } | null>(null)
   const mic = useRef<Mic | null>(null)
   const wakeLock = useRef<WakeLockSentinel | null>(null)
   const timer = useRef(0)
@@ -46,10 +74,23 @@ export default function LungView() {
     }
   }, [])
 
-  async function start() {
+  function choose(ids: string[]) {
+    setPlan(ids.map(spotById))
+    setStep(0)
+    setResults({})
+    setError('')
+  }
+
+  function startOver() {
+    cancel()
+    setPlan(null)
+    setResults({})
+    setStep(0)
+  }
+
+  async function record(spot: Spot) {
     if (!model) return
     setError('')
-    setShown(null)
     window.dispatchEvent(new Event(STOP_COUGH))
     const chunks: Float32Array[] = []
     let recording = false
@@ -71,17 +112,18 @@ export default function LungView() {
     }
     wakeLock.current = (await navigator.wakeLock?.request('screen').catch(() => null)) ?? null
 
-    // countdown while the phone is placed on the chest; that audio is thrown away
+    // time to place the phone (more for the back, where a helper holds it); that audio is dropped
+    const countdown = spot.side === 'back' ? 5 : 3
     const t0 = performance.now()
     const tick = () => {
       const s = (performance.now() - t0) / 1000
-      if (s < COUNTDOWN) {
-        setPhase({ kind: 'countdown', left: Math.ceil(COUNTDOWN - s) })
+      if (s < countdown) {
+        setPhase({ kind: 'countdown', left: Math.ceil(countdown - s) })
       } else if (got < need) {
         recording = true
-        setPhase({ kind: 'recording', elapsed: s - COUNTDOWN })
+        setPhase({ kind: 'recording', elapsed: s - countdown })
       } else {
-        finish(chunks, need)
+        void finish(spot, chunks, need)
         return
       }
       timer.current = requestAnimationFrame(tick)
@@ -89,7 +131,7 @@ export default function LungView() {
     tick()
   }
 
-  async function finish(chunks: Float32Array[], need: number) {
+  async function finish(spot: Spot, chunks: Float32Array[], need: number) {
     mic.current?.stop()
     mic.current = null
     void wakeLock.current?.release()
@@ -105,7 +147,8 @@ export default function LungView() {
     // the pacer makes each 4 s window one breath
     const starts = Array.from({ length: BREATHS }, (_, i) => i * BREATH_SECONDS * SR)
     try {
-      setShown({ source: 'your chest', result: await model!.analyze(y, starts) })
+      const r = await model!.analyze(y, starts)
+      setResults((prev) => ({ ...prev, [spot.id]: r }))
     } catch (e) {
       setError(`Analysis failed: ${e}`)
     }
@@ -123,11 +166,11 @@ export default function LungView() {
   async function testFile(file: File) {
     if (!model) return
     setError('')
-    setShown(null)
+    setFileResult(null)
     setPhase({ kind: 'analyzing' })
     try {
       const y = await decodeFile(file)
-      setShown({ source: file.name, result: await model.analyze(y) })
+      setFileResult({ name: file.name, result: await model.analyze(y) })
     } catch (e) {
       setError(`Could not read ${file.name}: ${e}`)
     }
@@ -135,42 +178,105 @@ export default function LungView() {
   }
 
   const busy = phase.kind !== 'idle'
+  const done = plan !== null && plan.every((s) => results[s.id])
+  const spot = plan && !done ? plan[step] : null
+  const spotResult = spot ? results[spot.id] : undefined
 
   return (
     <>
-      <section className="card">
-        <h2>How to do a lung check</h2>
-        <ol className="steps">
-          <li>Sit still in a quiet room.</li>
-          <li>Press the bottom of the phone (where the mic is) firmly on bare skin, just below the collarbone.</li>
-          <li>Breathe slowly and deeply through your mouth, following the circle: in as it grows, out as it shrinks.</li>
-        </ol>
-      </section>
-
-      <section className="card live">
-        <Pacer phase={phase} />
-        {!model ? (
-          <>
-            <div className="level" title="Download progress">
-              <div style={{ width: `${Math.round(progress * 100)}%` }} />
-            </div>
-            <button className="btn" disabled>
-              Loading lung model… {Math.round(progress * 100)}%
+      {!plan && (
+        <section className="card">
+          <h2>Lung check</h2>
+          <p className="muted">
+            The phone listens to your breathing at a few spots on the chest, like a doctor with a
+            stethoscope. Each spot takes {BREATHS} slow breaths ({BREATHS * BREATH_SECONDS} s).
+          </p>
+          <ul className="steps">
+            <li>Sit still in a quiet room, with bare skin where the phone goes.</li>
+            <li>Press the bottom edge of the phone (where the mic is) firmly on the skin.</li>
+            <li>Breathe slowly and deeply through your mouth, following the circle.</li>
+          </ul>
+          <div className="choices">
+            <button className="btn" onClick={() => choose(PLANS.four)} disabled={!model}>
+              4 spots, front and back
+              <span className="btn-sub">recommended, needs a helper for the back</span>
             </button>
-          </>
-        ) : phase.kind === 'countdown' || phase.kind === 'recording' ? (
-          <button className="btn stop" onClick={cancel}>
-            Cancel
-          </button>
-        ) : (
-          <button className="btn" onClick={start} disabled={busy}>
-            {phase.kind === 'analyzing' ? 'Analyzing…' : `Start (${BREATHS} breaths, ${BREATHS * BREATH_SECONDS} s)`}
-          </button>
-        )}
-        {error && <p className="error">{error}</p>}
-      </section>
+            <button className="btn secondary" onClick={() => choose(PLANS.two)} disabled={!model}>
+              2 spots, front only
+              <span className="btn-sub">if you are on your own</span>
+            </button>
+          </div>
+          {!model && <LoadBar progress={progress} />}
+          {error && <p className="error">{error}</p>}
+        </section>
+      )}
 
-      {shown && <Results shown={shown} />}
+      {spot && (
+        <>
+          <section className="card">
+            <div className="row">
+              <h2>
+                Step {step + 1} of {plan!.length}: {spot.name}
+              </h2>
+              <button className="link" onClick={startOver} disabled={busy}>
+                Start over
+              </button>
+            </div>
+            <ChestDiagram
+              side={spot.side}
+              spots={plan!
+                .map((s, i) => ({ s, i }))
+                .filter(({ s }) => s.side === spot.side)
+                .map(({ s, i }) => ({
+                  spot: s,
+                  n: i + 1,
+                  state: s.id === spot.id && !results[s.id] ? 'current' : spotState(results[s.id]),
+                }))}
+            />
+            <p className="tip">
+              <b>Where:</b> {spot.tip}
+            </p>
+          </section>
+
+          {!spotResult ? (
+            <section className="card live">
+              <Pacer phase={phase} back={spot.side === 'back'} />
+              {phase.kind === 'countdown' || phase.kind === 'recording' ? (
+                <button className="btn stop" onClick={cancel}>
+                  Cancel
+                </button>
+              ) : (
+                <button className="btn" onClick={() => record(spot)} disabled={busy}>
+                  {phase.kind === 'analyzing' ? 'Analyzing…' : `Start ${spot.name.toLowerCase()}`}
+                </button>
+              )}
+              {error && <p className="error">{error}</p>}
+            </section>
+          ) : (
+            <section className="card">
+              <SpotResult spot={spot} result={spotResult} />
+              <div className="choices">
+                <button className="btn" onClick={() => setStep(step + 1)}>
+                  {step + 1 < plan!.length ? `Next: ${plan![step + 1].name}` : 'See summary'}
+                </button>
+                <button
+                  className="btn secondary"
+                  onClick={() =>
+                    setResults((prev) => {
+                      const { [spot.id]: _, ...rest } = prev
+                      return rest
+                    })
+                  }
+                >
+                  Redo {spot.name.toLowerCase()}
+                </button>
+              </div>
+            </section>
+          )}
+        </>
+      )}
+
+      {done && <Summary plan={plan!} results={results} onAgain={startOver} />}
 
       <section className="card">
         <h2>Test with a recording</h2>
@@ -181,6 +287,11 @@ export default function LungView() {
           disabled={!model || busy}
           onChange={(e) => e.target.files?.[0] && testFile(e.target.files[0])}
         />
+        {fileResult && (
+          <div className="result">
+            <SpotResult name={fileResult.name} result={fileResult.result} />
+          </div>
+        )}
       </section>
 
       <footer className="muted">
@@ -191,20 +302,29 @@ export default function LungView() {
   )
 }
 
-function Pacer({ phase }: { phase: Phase }) {
+function LoadBar({ progress }: { progress: number }) {
+  return (
+    <>
+      <div className="level" title="Download progress">
+        <div style={{ width: `${Math.round(progress * 100)}%` }} />
+      </div>
+      <p className="muted center">Loading lung model… {Math.round(progress * 100)}%</p>
+    </>
+  )
+}
+
+function Pacer({ phase, back }: { phase: Phase; back: boolean }) {
   let scale = 0.55
   let label = 'Ready'
   let sub = ''
   if (phase.kind === 'countdown') {
     label = String(phase.left)
-    sub = 'place the phone on your chest'
+    sub = back ? 'helper: place the phone on the back' : 'place the phone on your chest'
   } else if (phase.kind === 'recording') {
     const breath = Math.min(BREATHS, Math.floor(phase.elapsed / BREATH_SECONDS) + 1)
     const inBreath = (phase.elapsed % BREATH_SECONDS) / BREATH_SECONDS // 0..1
-    const inhale = inBreath < 0.5
-    // smooth grow for the first half, shrink for the second
-    scale = 0.55 + 0.45 * Math.sin(Math.PI * inBreath)
-    label = inhale ? 'Breathe in' : 'Breathe out'
+    scale = 0.55 + 0.45 * Math.sin(Math.PI * inBreath) // grow, then shrink
+    label = inBreath < 0.5 ? 'Breathe in' : 'Breathe out'
     sub = `breath ${breath} of ${BREATHS}`
   } else if (phase.kind === 'analyzing') {
     label = 'Analyzing'
@@ -221,45 +341,96 @@ function Pacer({ phase }: { phase: Phase }) {
   )
 }
 
-function Results({ shown }: { shown: Shown }) {
-  const { breaths, counts, tooQuiet } = shown.result
-  const n = breaths.length
-  const crackles = counts.crackle + counts.both
-  const wheezes = counts.wheeze + counts.both
-  let headline: string
-  if (n === 0) headline = 'The recording was too short to check.'
-  else if (crackles === 0 && wheezes === 0) headline = `All ${n} breaths sounded normal.`
-  else {
-    const parts = []
-    if (wheezes) parts.push(`wheezing in ${wheezes} of ${n}`)
-    if (crackles) parts.push(`crackles in ${crackles} of ${n}`)
-    headline = `Possible ${parts.join(' and ')} breaths.`
-  }
+function SpotResult({ spot, name, result }: { spot?: Spot; name?: string; result: LungResult }) {
+  const n = result.breaths.length
   return (
-    <section className="card">
-      <h2>Result: {shown.source}</h2>
-      {tooQuiet && (
+    <>
+      <h2>Result: {spot?.name ?? name}</h2>
+      {result.tooQuiet && (
         <p className="error left">
           The recording was very quiet. Press the mic firmly on bare skin and try again.
         </p>
       )}
-      <p className="headline">{headline}</p>
+      <p className="headline">{headline(result)}</p>
       <ul className="log full">
-        {breaths.map((b, i) => {
-          const p = Math.max(...b.probs)
-          return (
-            <li key={i}>
-              <span>
-                {n > BREATHS ? `${b.t.toFixed(0)} s` : `Breath ${i + 1}`}
-              </span>
-              <span>
-                <span className={`chip ${b.label}`}>{NAMES[b.label]}</span>{' '}
-                <span className="muted">{Math.round(p * 100)}%</span>
-              </span>
-            </li>
-          )
-        })}
+        {result.breaths.map((b, i) => (
+          <li key={i}>
+            <span>{n > BREATHS ? `${b.t.toFixed(0)} s` : `Breath ${i + 1}`}</span>
+            <span>
+              <span className={`chip ${b.label}`}>{NAMES[b.label]}</span>{' '}
+              <span className="muted">{Math.round(Math.max(...b.probs) * 100)}%</span>
+            </span>
+          </li>
+        ))}
       </ul>
+    </>
+  )
+}
+
+function Summary({
+  plan,
+  results,
+  onAgain,
+}: {
+  plan: Spot[]
+  results: Record<string, LungResult>
+  onAgain: () => void
+}) {
+  const sides = (['front', 'back'] as Side[]).filter((side) => plan.some((s) => s.side === side))
+  const flagged = plan.filter((s) => spotState(results[s.id]) === 'abnormal')
+
+  // left vs right at the same height: one side flagged and the other not
+  const differ = sides.filter((side) => {
+    const l = results[`${side}-left`]
+    const r = results[`${side}-right`]
+    return l && r && spotState(l) !== spotState(r)
+  })
+
+  return (
+    <section className="card">
+      <div className="row">
+        <h2>Summary</h2>
+        <button className="link" onClick={onAgain}>
+          Check again
+        </button>
+      </div>
+      <p className="headline">
+        {flagged.length === 0
+          ? `All ${plan.length} spots sounded mostly normal.`
+          : `Possible abnormal sounds at ${flagged.map((s) => s.name.toLowerCase()).join(', ')}.`}
+      </p>
+      <div className="diagrams">
+        {sides.map((side) => (
+          <ChestDiagram
+            key={side}
+            side={side}
+            spots={plan
+              .map((s, i) => ({ s, i }))
+              .filter(({ s }) => s.side === side)
+              .map(({ s, i }) => ({ spot: s, n: i + 1, state: spotState(results[s.id]) }))}
+          />
+        ))}
+      </div>
+      <div className="legend">
+        <span className="dot normal" /> mostly normal <span className="dot abnormal" /> {ABNORMAL_BREATHS}+ breaths
+        with crackles or wheezes
+      </div>
+      <ul className="log full">
+        {plan.map((s, i) => (
+          <li key={s.id}>
+            <span>
+              {i + 1}. {s.name}
+            </span>
+            <span className="muted">{headline(results[s.id])}</span>
+          </li>
+        ))}
+      </ul>
+      {differ.map((side) => (
+        <p key={side} className="tip">
+          <b>Left and right sound different at the {side}.</b> One-sided sounds are worth mentioning
+          to a doctor.
+        </p>
+      ))}
     </section>
   )
 }
