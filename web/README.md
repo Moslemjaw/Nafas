@@ -20,7 +20,8 @@ In the full Nafas design the models run on the Raspberry Pi; this is the prototy
 ## Show it on a computer screen
 
 Open the app on a computer with **`#display`** at the end of the URL
-(https://nafas-lemon.vercel.app/#display). It shows a QR code. Scan it with the phone:
+(https://nafas-lemon.vercel.app/#display; `#device`, `#screen` and `#tv` work too). It
+shows a QR code. Scan it with the phone:
 the app opens on the phone already paired, and the computer shows, live, a big cough
 counter, the cough probability, coughs per minute, and the lung check (the breathing
 circle mirrored in step with the phone, chest diagrams and results).

@@ -10,8 +10,9 @@ const DisplayView = lazy(() => import('./DisplayView'))
 
 type Tab = 'cough' | 'lung'
 
-/** #display on a computer turns the app into the big-screen view for a paired phone. */
-const isDisplay = () => location.hash.startsWith('#display')
+/** #display on a computer turns the app into the big-screen view for a paired phone
+ *  (#device, #screen and #tv work too, in any case, so a close guess still works). */
+const isDisplay = () => /^#(display|device|screen|tv)\b/i.test(location.hash)
 
 /** Opened from a screen's QR code (#pair=...): mirror this phone to that screen. */
 const initialPairing = isDisplay() ? null : pairingFromUrl()
