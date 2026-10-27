@@ -30,8 +30,9 @@ a lung check on a team member gave **normal** for both lungs.
 
 ## Datasets
 
-All public and labelled. None are stored in this repo (together they take tens of GB):
-download them and point the scripts at them.
+All public and labelled. None are stored in this repo (together they take tens of GB).
+**[SETUP.md](SETUP.md)** explains how to download them and set everything up on a new
+computer.
 
 | Dataset | What it is | How we use it | Used |
 |---|---|---|---|
