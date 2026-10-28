@@ -41,8 +41,8 @@ jobs:
           mkdir -p web
           echo '{ "git": { "deploymentEnabled": false } }' > web/vercel.json
           git init -q -b gh-pages
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git config user.name "Musallam Jawish"
+          git config user.email "Musallamjawish314@gmail.com"
           git add -A
           git commit -q -m "Deploy web app build from ${GITHUB_SHA::7}"
           git push --force "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" gh-pages
