@@ -92,7 +92,9 @@ python train.py train --data cough_dataset --epochs 25 --noise 0.5              
 python train.py web --data cough_dataset                                                                            # copies the model into the app
 ```
 
-Expected result (`cough_dataset/results.txt`): F1 about 0.954 on the test set.
+Expected result (`cough_dataset/results.txt`): F1 about 0.935 on the test set. This test set
+also has the hard loud-voice clips, so it is lower than the 0.948 in the README (which is
+on the original test set).
 
 **Lung model**
 

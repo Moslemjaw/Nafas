@@ -102,7 +102,7 @@ export default function CoughView() {
     }
   }
 
-  const threshold = model?.cfg.threshold ?? 0.83
+  const threshold = model?.cfg.threshold ?? 0.85
   const p = score?.p ?? 0
   const isCough = p >= threshold
 

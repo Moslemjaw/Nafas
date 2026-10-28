@@ -9,7 +9,7 @@ import { SPOTS, type Side, type SpotState } from './spots'
 
 const SCREEN_KEY = 'nafas-screen'
 const OFFLINE_AFTER_MS = 15000 // the phone sends at least every 5 s while connected
-const THRESHOLD = 0.83 // cough model threshold, for the live bar
+const THRESHOLD = 0.85 // cough model threshold, for the live bar
 const BREATHS = 6
 const BREATH_SECONDS = 4
 const MINUTES = 15

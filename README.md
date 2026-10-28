@@ -31,7 +31,7 @@ Supervisors: Dr. Khaled Alanezi and Abdullah Karar
 
 | Model | Trained on | Tested on | Result | Size |
 |---|---|---|---|---|
-| Cough detector | COUGHVID, Coswara, ESC-50 | 66,324 clips from people the model never saw | F1 0.954 (0.894 with background noise as loud as the cough) | 294k params, 1.2 MB |
+| Cough detector | COUGHVID, Coswara, ESC-50 | 66,324 clips from people the model never saw | F1 0.948, and about half the false alarms from loud voices compared to before | 294k params, 1.2 MB |
 | Lung sounds | ICBHI 2017 | official test split, 2,756 breaths from 49 patients | ICBHI score 0.537 | 11.2M params, 44.7 MB |
 
 Both models learned from other people's phones and stethoscopes, not from our vest
@@ -86,17 +86,20 @@ python train.py web --data cough_dataset
 Everything is converted to 16 kHz mono. For cough recordings we find the loud parts
 with `librosa.effects.split` (30 dB below the peak, at least 100 ms) and take a 1 s clip
 around each one. For everything else we slide a 1 s window with a 0.5 s step and skip
-the silent parts.
+the silent parts. Since round 3 we also cut the speech, breathing and everyday sounds
+the same way as the coughs (1 s around each loud part), see round 3 below for why.
 
 We split the data 70/15/15 by person (or by recording for ESC-50), so nobody appears
 in both training and testing. Otherwise the test score would partly measure how well
-the model remembers voices. In total we got 449,617 clips:
+the model remembers voices. For rounds 1 and 2 we had 449,617 clips:
 
 | Split | cough | not cough |
 |---|---|---|
 | train | 74,369 | 238,536 |
 | val | 16,102 | 54,286 |
 | test | 15,903 | 50,421 |
+
+Round 3 added 123,783 more not-cough clips (573,400 in total).
 
 ### The model
 
@@ -118,11 +121,11 @@ Training details:
 
 ### Results
 
-We trained two rounds. Round 1 was 10 epochs without noise mixing. It did well on
+We trained three rounds. Round 1 was 10 epochs without noise mixing. It did well on
 clean audio but we were worried about real rooms, so round 2 added noise mixing and
 trained for 25 epochs.
 
-| | Round 1 | Round 2 (final) |
+| | Round 1 | Round 2 |
 |---|---|---|
 | threshold (from val) | 0.79 | 0.83 |
 | F1 | 0.953 | 0.954 |
@@ -146,14 +149,45 @@ noise to the test clips:
 When the noise is as loud as the cough, round 1 misses about half of the coughs and
 round 2 still gets 85% of them.
 
+### Round 3: loud voices counted as coughs
+
+When we tried the app, loud talking was sometimes counted as a cough. We found the
+reason: the app always looks at 1 s centered on a loud sound, and in training only the
+coughs were cut that way. Speech and breathing were cut with a sliding window, so the
+model rarely saw a loud word centered in the clip and partly learned "loud sound in the
+middle = cough".
+
+We checked this on speech from people in the test set. Centered on the loud part (like
+the app does), round 2 called 7.1% of loud vowel sounds a cough, compared to 0.6% with
+sliding windows.
+
+So in round 3 we also cut speech, breathing and everyday sounds around their loud parts
+and added them as not-cough clips, then trained again (25 epochs, noise mixing). Results
+the way the app sees them (250 test people):
+
+| Sound | Round 2 | Round 3 (final) |
+|---|---|---|
+| vowel "a" called a cough | 7.1% | 3.5% |
+| vowels "e" / "o" | 5.5% | 2.2% / 2.7% |
+| deep / shallow breathing | 6.8% / 8.8% | 2.7% / 3.1% |
+| counting (normal / fast) | 1.9% / 3.1% | 0.8% / 1.9% |
+| heavy / shallow coughs found | 96.6% / 93.4% | 94.9% / 91.4% |
+
+On the original test set round 3 gets F1 0.948 (precision 0.975, recall 0.923, 380
+false alarms instead of 621). So it misses a few more coughs, but it gives about half
+the false alarms on loud voices and two to three times fewer on breathing, which
+matters more for a device that listens all day. We also tried ignoring long sounds,
+but the false alarms from voices are short, just like coughs, so that didn't help.
+The app uses round 3 with a threshold of 0.85.
+
 By dataset (round 2): COUGHVID recall 0.953, Coswara precision 0.854 / recall 0.929,
 and on ESC-50 about 1.1% of everyday sounds were wrongly called coughs (25 out of
 2,208).
 
 ### Problems we still have
 
-- Around 1% of everyday sounds still trigger it, and noise mixing didn't help with
-  that. ESC-50 is only ~3% of our training data, so we think adding more varied sounds
+- Loud voices and breathing still trigger it sometimes (about 2 to 3% of loud
+  sounds), even after round 3. Around 1% of everyday sounds also trigger it. ESC-50 is only ~3% of our training data, so we think adding more varied sounds
   (FSD50K or AudioSet) would fix it.
 - All the training audio comes from phones. The vest mics will sound different, so we
   need a few hundred of our own recordings for fine-tuning.
@@ -167,7 +201,7 @@ To score a 1 s, 16 kHz window `y`:
 
 1. `x = log(melspectrogram(y, sr=16000, n_fft=400, hop_length=160, n_mels=64, fmin=50, fmax=8000) + 1e-6)`
 2. `x = (x - mean) / std`
-3. run it as `[1, 1, 64, 101]`; it's a cough if `sigmoid(logit) >= 0.83`
+3. run it as `[1, 1, 64, 101]`; it's a cough if `sigmoid(logit) >= 0.85`
 
 ## Lung model
 

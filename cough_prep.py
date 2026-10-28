@@ -85,6 +85,13 @@ def windows(y):
     return clips
 
 
+def negatives(y):
+    """Not-cough clips: sliding windows, plus 1 s clips centered on loud events.
+    The app centers a window on every loud event, so the model also has to see
+    loud speech and breaths centered that way, not only coughs."""
+    return windows(y) + cough_events(y)
+
+
 # ---------- dataset readers ----------
 def read_coughvid(root: Path):
     meta = pd.read_csv(root / "metadata_compiled.csv")
@@ -115,7 +122,7 @@ def read_coswara(root: Path):
                 for c in cough_events(y):
                     yield c, "cough", "coswara", group
             else:
-                for c in windows(y):
+                for c in negatives(y):
                     yield c, "not_cough", "coswara", group
 
 
@@ -126,7 +133,7 @@ def read_esc50(root: Path):
         if y is None:
             continue
         label = "cough" if r["category"] == "coughing" else "not_cough"
-        clips = cough_events(y) if label == "cough" else windows(y)
+        clips = cough_events(y) if label == "cough" else negatives(y)
         for c in clips:
             yield c, label, "esc50", f"esc_{r['src_file']}"
 
