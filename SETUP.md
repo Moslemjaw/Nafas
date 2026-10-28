@@ -1,10 +1,11 @@
 # Setting up Nafas on a new computer
 
-Everything you need to download to run and retrain the project. The code is on
-GitHub; the datasets and tools are downloaded separately.
+These are the steps we followed to set up the project, written so a teammate can do
+the same on another computer. The code is on GitHub, but the datasets and tools have
+to be downloaded separately.
 
-> **Only want to use the app?** You don't need any of this. Open
-> https://nafas-lemon.vercel.app on a phone (or `/#display` on a computer). The final
+> If you only want to use the app you don't need any of this. Just open
+> https://nafas-lemon.vercel.app on a phone (or `/#display` on a computer). The trained
 > models are already in the repo, in `web/public/model/`.
 
 ## 1. Install the tools
@@ -17,8 +18,9 @@ GitHub; the datasets and tools are downloaded separately.
 | **ffmpeg** | Reads COUGHVID's `.webm` and `.ogg` files | Windows: `winget install Gyan.FFmpeg` (open a new terminal afterwards) |
 | **NVIDIA GPU** (optional) | Training is about 10× faster (we used a GTX 1660 Ti) | Install the latest NVIDIA driver |
 
-> **Keep a laptop plugged in while training.** On battery, Windows slows the GPU down
-> to about a seventh of its speed, and a long run can die when the battery does.
+> Keep the laptop plugged in while training. We learned this the hard way: on battery
+> Windows slows the GPU down to about a seventh of its speed, and a long run can die
+> when the battery does.
 
 Python packages:
 
@@ -125,7 +127,7 @@ retraining:
 | `Nafas_Data.xlsx` | The project data workbook (it contains patient-level ICBHI data) |
 | `test_sounds/` | ICBHI wheeze, crackle and normal clips for testing the app through a speaker |
 
-## Problems we ran into
+## Problems we ran into (and how we fixed them)
 
 | Problem | Fix |
 |---|---|
